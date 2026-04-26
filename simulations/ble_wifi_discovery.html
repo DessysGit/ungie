@@ -1,0 +1,136 @@
+
+<style>
+  .phase-nav { display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; }
+  button { font-size:13px; padding:6px 14px; border-radius:var(--border-radius-md); border:0.5px solid var(--color-border-secondary); background:var(--color-background-primary); color:var(--color-text-primary); cursor:pointer; }
+  button:hover { background:var(--color-background-secondary); }
+  button.active { background:var(--color-background-info); color:var(--color-text-info); border-color:var(--color-border-info); }
+  #phase-desc { font-size:13px; color:var(--color-text-secondary); min-height:48px; line-height:1.6; margin-bottom:8px; }
+  @keyframes pulse-ring { 0%{r:28;opacity:0.6} 100%{r:80;opacity:0} }
+  @keyframes pulse-ring2 { 0%{r:28;opacity:0.5} 100%{r:60;opacity:0} }
+  @keyframes dash-flow { to{stroke-dashoffset:-20} }
+  .ble-ring { animation: pulse-ring 1.8s ease-out infinite; }
+  .ble-ring2 { animation: pulse-ring 1.8s ease-out infinite 0.6s; }
+  .ble-ring3 { animation: pulse-ring 1.8s ease-out infinite 1.2s; }
+  .scan-ring { animation: pulse-ring2 1.4s ease-out infinite; }
+  .data-flow { stroke-dasharray:6 4; animation: dash-flow 0.6s linear infinite; }
+</style>
+
+<h2 class="sr-only">Interactive BLE and Wi-Fi Direct discovery process walkthrough</h2>
+
+<div class="phase-nav">
+  <button class="active" onclick="setPhase(0)">1. BLE advertising</button>
+  <button onclick="setPhase(1)">2. Scanning</button>
+  <button onclick="setPhase(2)">3. Handshake</button>
+  <button onclick="setPhase(3)">4. Data transfer</button>
+</div>
+
+<div id="phase-desc">Phone A broadcasts a tiny 31-byte BLE packet into the air every ~200ms — like a lighthouse pulse. It doesn't connect to anything. It just announces "I exist."</div>
+
+<svg width="100%" viewBox="0 0 680 300" role="img">
+  <title>BLE and Wi-Fi Direct discovery phases</title>
+  <desc>Two phones discovering each other through BLE advertising and Wi-Fi Direct data transfer</desc>
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Phone A (left) -->
+  <g id="phone-a">
+    <rect x="60" y="100" width="130" height="100" rx="12" fill="var(--color-background-secondary)" stroke="#888780" stroke-width="0.5"/>
+    <text x="125" y="140" text-anchor="middle" font-size="13" font-weight="500" fill="var(--color-text-primary)">Phone A</text>
+    <text id="a-role" x="125" y="160" text-anchor="middle" font-size="11" fill="#888780">advertising</text>
+    <text id="a-radio" x="125" y="178" text-anchor="middle" font-size="10" fill="#7F77DD">BLE</text>
+  </g>
+
+  <!-- Phone B (right) -->
+  <g id="phone-b">
+    <rect x="490" y="100" width="130" height="100" rx="12" fill="var(--color-background-secondary)" stroke="#888780" stroke-width="0.5"/>
+    <text x="555" y="140" text-anchor="middle" font-size="13" font-weight="500" fill="var(--color-text-primary)">Phone B</text>
+    <text id="b-role" x="555" y="160" text-anchor="middle" font-size="11" fill="#888780">listening</text>
+    <text id="b-radio" x="555" y="178" text-anchor="middle" font-size="10" fill="#888780">scanning</text>
+  </g>
+
+  <!-- BLE pulse rings from A (phase 0 + 1) -->
+  <g id="ble-rings">
+    <circle class="ble-ring"  cx="190" cy="150" r="28" fill="none" stroke="#7F77DD" stroke-width="1"/>
+    <circle class="ble-ring2" cx="190" cy="150" r="28" fill="none" stroke="#7F77DD" stroke-width="0.8"/>
+    <circle class="ble-ring3" cx="190" cy="150" r="28" fill="none" stroke="#7F77DD" stroke-width="0.6"/>
+  </g>
+
+  <!-- Scan pulse from B (phase 1) -->
+  <g id="scan-rings" style="opacity:0">
+    <circle class="scan-ring"  cx="490" cy="150" r="28" fill="none" stroke="#1D9E75" stroke-width="1"/>
+    <circle class="scan-ring"  cx="490" cy="150" r="28" fill="none" stroke="#1D9E75" stroke-width="0.7" style="animation-delay:0.7s"/>
+  </g>
+
+  <!-- Handshake arrows (phase 2) -->
+  <g id="handshake" style="opacity:0">
+    <line x1="200" y1="138" x2="480" y2="128" stroke="#BA7517" stroke-width="1" marker-end="url(#a3)"/>
+    <text x="340" y="122" text-anchor="middle" font-size="10" fill="#BA7517">I see you (BLE)</text>
+    <line x1="480" y1="162" x2="200" y2="172" stroke="#1D9E75" stroke-width="1" marker-end="url(#a3)"/>
+    <text x="340" y="186" text-anchor="middle" font-size="10" fill="#1D9E75">connect to my Wi-Fi Direct</text>
+  </g>
+
+  <!-- Data transfer (phase 3) -->
+  <g id="data-pipe" style="opacity:0">
+    <rect x="200" y="136" width="280" height="28" rx="6" fill="none" stroke="#1D9E75" stroke-width="0.5" stroke-dasharray="4 3"/>
+    <line class="data-flow" x1="210" y1="150" x2="470" y2="150" stroke="#1D9E75" stroke-width="2" marker-end="url(#a3)"/>
+    <text x="340" y="122" text-anchor="middle" font-size="10" fill="#1D9E75">Wi-Fi Direct — high speed</text>
+    <text x="340" y="178" text-anchor="middle" font-size="10" fill="#888780">packets, images, bulk data</text>
+  </g>
+
+  <!-- Packet size label (phase 0) -->
+  <g id="packet-label">
+    <rect x="248" y="60" width="184" height="32" rx="6" fill="var(--color-background-secondary)" stroke="#7F77DD" stroke-width="0.5"/>
+    <text x="340" y="80" text-anchor="middle" font-size="11" fill="#7F77DD">31 bytes · ~200ms interval</text>
+  </g>
+</svg>
+
+<script>
+const phases = [
+  {
+    desc: "Phone A broadcasts a tiny 31-byte BLE packet into the air every ~200ms — like a lighthouse pulse. It doesn't connect to anything. It just announces \"I exist.\" This is BLE Advertising mode.",
+    bleRings: 1, scanRings: 0, handshake: 0, pipe: 0, packetLabel: 1,
+    aRole: 'advertising', bRole: 'not listening yet', aRadio: 'BLE', bRadio: 'radio off'
+  },
+  {
+    desc: "Phone B switches its BLE radio into Scan mode — it listens for any nearby advertisements. It hears Phone A's pulse and records it: \"There's a device at this address with these properties.\" No connection yet.",
+    bleRings: 1, scanRings: 1, handshake: 0, pipe: 0, packetLabel: 0,
+    aRole: 'advertising', bRole: 'scanning', aRadio: 'BLE', bRadio: 'BLE scan'
+  },
+  {
+    desc: "Phone B has seen Phone A. Now they negotiate: Phone A sends a connection request over BLE. Phone B responds with Wi-Fi Direct credentials — its temporary network name and password. This is the handshake.",
+    bleRings: 0, scanRings: 0, handshake: 1, pipe: 0, packetLabel: 0,
+    aRole: 'connecting', bRole: 'responding', aRadio: 'BLE + Wi-Fi', bRadio: 'BLE + Wi-Fi'
+  },
+  {
+    desc: "Connection established via Wi-Fi Direct. Now the real data flows — fast, bidirectional, and in large chunks. BLE was just the doorbell. Wi-Fi Direct is the hallway they now share.",
+    bleRings: 0, scanRings: 0, handshake: 0, pipe: 1, packetLabel: 0,
+    aRole: 'sending data', bRole: 'receiving data', aRadio: 'Wi-Fi Direct', bRadio: 'Wi-Fi Direct'
+  }
+];
+
+let current = 0;
+
+function setPhase(i) {
+  current = i;
+  const p = phases[i];
+  document.getElementById('phase-desc').textContent = p.desc;
+  document.getElementById('ble-rings').style.opacity = p.bleRings;
+  document.getElementById('scan-rings').style.opacity = p.scanRings;
+  document.getElementById('handshake').style.opacity = p.handshake;
+  document.getElementById('data-pipe').style.opacity = p.pipe;
+  document.getElementById('packet-label').style.opacity = p.packetLabel;
+  document.getElementById('a-role').textContent = p.aRole;
+  document.getElementById('b-role').textContent = p.bRole;
+  document.getElementById('a-radio').textContent = p.aRadio;
+  document.getElementById('b-radio').textContent = p.bRadio;
+
+  const PURPLE = '#7F77DD', TEAL = '#1D9E75', GRAY = '#888780';
+  document.getElementById('a-radio').setAttribute('fill', i < 3 ? PURPLE : TEAL);
+  document.getElementById('b-radio').setAttribute('fill', i === 0 ? GRAY : i === 1 ? TEAL : TEAL);
+
+  document.querySelectorAll('.phase-nav button').forEach((b,j) => b.classList.toggle('active', j===i));
+}
+</script>

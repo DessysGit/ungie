@@ -1,0 +1,252 @@
+
+<style>
+  .sim-wrap { padding: 0.5rem 0; }
+  .row { display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+  .node-card { flex:1; min-width:160px; border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-lg); padding:12px; background:var(--color-background-primary); }
+  .node-title { font-size:13px; font-weight:500; color:var(--color-text-primary); margin-bottom:6px; }
+  .node-badge { display:inline-block; font-size:10px; padding:2px 8px; border-radius:20px; margin-bottom:8px; }
+  .badge-a { background:#EEEDFE; color:#534AB7; }
+  .badge-b { background:#E1F5EE; color:#0F6E56; }
+  .badge-c { background:#FAEEDA; color:#854F0B; }
+  .packet-list { min-height:60px; }
+  .packet-pill { font-size:11px; padding:3px 8px; border-radius:20px; display:inline-block; margin:2px; background:var(--color-background-secondary); color:var(--color-text-secondary); border:0.5px solid var(--color-border-tertiary); transition: background 0.4s, color 0.4s; }
+  .packet-pill.new { background:#E1F5EE; color:#0F6E56; border-color:#1D9E75; }
+  .packet-pill.origin { background:#EEEDFE; color:#534AB7; border-color:#7F77DD; }
+  .log-box { border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); padding:10px; font-size:11px; color:var(--color-text-secondary); line-height:1.8; min-height:80px; background:var(--color-background-secondary); font-family:var(--font-mono); margin-bottom:10px; max-height:160px; overflow-y:auto; }
+  .log-entry { margin:0; }
+  .log-entry.sync { color:#1D9E75; }
+  .log-entry.push { color:#7F77DD; }
+  .log-entry.skip { color:#888780; }
+  .log-entry.done { color:#BA7517; font-weight:500; }
+  .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  button { font-size:13px; padding:6px 14px; border-radius:var(--border-radius-md); border:0.5px solid var(--color-border-secondary); background:var(--color-background-primary); color:var(--color-text-primary); cursor:pointer; }
+  button:hover { background:var(--color-background-secondary); }
+  button.primary { background:var(--color-background-info); color:var(--color-text-info); border-color:var(--color-border-info); }
+  button:disabled { opacity:0.4; cursor:not-allowed; }
+  .ttl-bar { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-text-tertiary); margin-top:4px; }
+  .ttl-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .section-label { font-size:11px; font-weight:500; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; }
+  .code-block { font-family:var(--font-mono); font-size:11px; background:var(--color-background-secondary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); padding:10px 12px; line-height:1.7; margin-bottom:10px; color:var(--color-text-secondary); white-space:pre; overflow-x:auto; }
+  .kw { color:#7F77DD; }
+  .cm { color:#888780; font-style:italic; }
+  .str { color:#1D9E75; }
+  .fn { color:#BA7517; }
+</style>
+
+<h2 class="sr-only">Hello World mesh simulation with three nodes and gossip protocol</h2>
+
+<div class="sim-wrap">
+
+<div class="btn-row">
+  <button class="primary" id="btn-step" onclick="step()">Step simulation</button>
+  <button onclick="addPacket()">Inject new packet into A</button>
+  <button onclick="resetSim()">Reset</button>
+</div>
+
+<div class="section-label">Live node state</div>
+<div class="row" id="node-row">
+  <div class="node-card" id="card-A">
+    <div class="node-title">Phone A <span class="node-badge badge-a">origin</span></div>
+    <div class="section-label">Packets</div>
+    <div class="packet-list" id="pkts-A"></div>
+    <div class="ttl-bar"><span class="ttl-dot" style="background:#7F77DD"></span>origin &nbsp; <span class="ttl-dot" style="background:#1D9E75"></span>received</div>
+  </div>
+  <div class="node-card" id="card-B">
+    <div class="node-title">Phone B <span class="node-badge badge-b">bridge</span></div>
+    <div class="section-label">Packets</div>
+    <div class="packet-list" id="pkts-B"></div>
+    <div class="ttl-bar"><span class="ttl-dot" style="background:#7F77DD"></span>origin &nbsp; <span class="ttl-dot" style="background:#1D9E75"></span>received</div>
+  </div>
+  <div class="node-card" id="card-C">
+    <div class="node-title">Phone C <span class="node-badge badge-c">destination</span></div>
+    <div class="section-label">Packets</div>
+    <div class="packet-list" id="pkts-C"></div>
+    <div class="ttl-bar"><span class="ttl-dot" style="background:#7F77DD"></span>origin &nbsp; <span class="ttl-dot" style="background:#1D9E75"></span>received</div>
+  </div>
+</div>
+
+<div class="section-label">Sync log</div>
+<div class="log-box" id="log-box"></div>
+
+<div class="section-label">What this looks like in Dart</div>
+<div class="code-block" id="code-view"><span class="cm">// Step through the simulation to see the relevant code</span></div>
+
+</div>
+
+<script>
+function sha(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8,'0').slice(0,6);
+}
+
+const MAX_TTL = 3;
+let packetCounter = 0;
+
+function makePacket(content, origin, ttl) {
+  const id = sha(content + origin + Date.now() + packetCounter++);
+  return { id, content, origin, ttl, isNew: false };
+}
+
+let nodes;
+let simPhase = 0;
+let stepCount = 0;
+const phaseNames = ['A→B sync','B→C sync','verify C has A\'s data'];
+
+const codes = [
+`<span class="cm">// Packet — the atom of your mesh</span>
+<span class="kw">class</span> <span class="fn">Packet</span> {
+  <span class="kw">final</span> String id;      <span class="cm">// SHA hash of content</span>
+  <span class="kw">final</span> String content;
+  <span class="kw">final</span> String origin;  <span class="cm">// which node created it</span>
+  <span class="kw">int</span> ttl;              <span class="cm">// hops remaining</span>
+}`,
+`<span class="cm">// Anti-entropy sync — the gossip engine</span>
+<span class="kw">void</span> <span class="fn">sync</span>(Node a, Node b) {
+  <span class="kw">final</span> aIds = a.packets.<span class="fn">map</span>((p) => p.id).<span class="fn">toSet</span>();
+  <span class="kw">final</span> bIds = b.packets.<span class="fn">map</span>((p) => p.id).<span class="fn">toSet</span>();
+
+  <span class="cm">// what B has that A lacks</span>
+  <span class="kw">final</span> aNeeds = bIds.<span class="fn">difference</span>(aIds);
+  <span class="cm">// what A has that B lacks</span>
+  <span class="kw">final</span> bNeeds = aIds.<span class="fn">difference</span>(bIds);
+
+  <span class="kw">for</span> (<span class="kw">final</span> id <span class="kw">in</span> aNeeds) {
+    <span class="kw">final</span> p = b.packets.<span class="fn">firstWhere</span>((p) => p.id == id);
+    <span class="kw">if</span> (p.ttl > 0) a.packets.<span class="fn">add</span>(p..<span class="fn">copyWith</span>(ttl: p.ttl - 1));
+  }
+}`,
+`<span class="cm">// Priority queue — text before images</span>
+packets.<span class="fn">sort</span>((a, b) {
+  <span class="kw">final</span> aScore = a.content.<span class="fn">length</span> < 20 ? 0 : 1;
+  <span class="kw">final</span> bScore = b.content.<span class="fn">length</span> < 20 ? 0 : 1;
+  <span class="kw">return</span> aScore.<span class="fn">compareTo</span>(bScore);
+});
+
+<span class="cm">// Short packets (text answers) jump the queue</span>
+<span class="cm">// Long packets (images) wait their turn</span>`
+];
+
+function initSim() {
+  nodes = {
+    A: { id:'A', packets: [makePacket('Hello from A','A', 3), makePacket('Ans: 42','A', 3)] },
+    B: { id:'B', packets: [] },
+    C: { id:'C', packets: [] }
+  };
+  simPhase = 0;
+  stepCount = 0;
+  document.getElementById('log-box').innerHTML = '<p class="log-entry">Simulation ready. Phone A has 2 packets. B and C are empty.</p><p class="log-entry">Click "Step simulation" to run A→B sync.</p>';
+  document.getElementById('code-view').innerHTML = codes[0];
+  document.getElementById('btn-step').disabled = false;
+  renderNodes();
+}
+
+function renderNodes() {
+  ['A','B','C'].forEach(id => {
+    const el = document.getElementById('pkts-'+id);
+    el.innerHTML = nodes[id].packets.map(p =>
+      `<span class="packet-pill ${p.isNew?'new':''} ${p.origin===id?'origin':''}" title="id:${p.id} ttl:${p.ttl}">${p.content} <span style="opacity:0.5;font-size:9px">ttl:${p.ttl}</span></span>`
+    ).join('') || '<span style="font-size:11px;color:var(--color-text-tertiary)">empty</span>';
+  });
+}
+
+function log(msg, cls) {
+  const box = document.getElementById('log-box');
+  const p = document.createElement('p');
+  p.className = 'log-entry ' + (cls||'');
+  p.textContent = msg;
+  box.appendChild(p);
+  box.scrollTop = box.scrollHeight;
+}
+
+function syncNodes(srcId, dstId) {
+  const src = nodes[srcId], dst = nodes[dstId];
+  const srcIds = new Set(src.packets.map(p=>p.id));
+  const dstIds = new Set(dst.packets.map(p=>p.id));
+
+  let pushed = 0;
+  src.packets.forEach(p => {
+    if (!dstIds.has(p.id)) {
+      if (p.ttl > 0) {
+        const copy = {...p, ttl: p.ttl-1, isNew: true};
+        dst.packets.push(copy);
+        log(`  → pushed "${p.content}" from ${srcId} to ${dstId} (ttl now ${p.ttl-1})`,'push');
+        pushed++;
+        setTimeout(()=>{ copy.isNew=false; renderNodes(); }, 900);
+      } else {
+        log(`  ✗ "${p.content}" TTL=0, not forwarded`,'skip');
+      }
+    }
+  });
+  dst.packets.forEach(p => {
+    if (!srcIds.has(p.id) && p.ttl > 0) {
+      const copy = {...p, ttl: p.ttl-1, isNew: true};
+      src.packets.push(copy);
+      log(`  → pushed "${p.content}" from ${dstId} to ${srcId} (ttl now ${p.ttl-1})`,'push');
+      pushed++;
+      setTimeout(()=>{ copy.isNew=false; renderNodes(); }, 900);
+    }
+  });
+  if (pushed === 0) log(`  Both nodes already in sync — nothing to exchange`,'skip');
+  return pushed;
+}
+
+function step() {
+  stepCount++;
+  if (simPhase === 0) {
+    log(`[Step ${stepCount}] Phones A and B meet — running anti-entropy sync`,'sync');
+    document.getElementById('code-view').innerHTML = codes[1];
+    const pushed = syncNodes('A','B');
+    renderNodes();
+    log(`  Sync complete. ${pushed} packet(s) exchanged.`,'');
+    simPhase = 1;
+  } else if (simPhase === 1) {
+    log(`[Step ${stepCount}] Phones B and C meet — B bridges the gap`,'sync');
+    document.getElementById('code-view').innerHTML = codes[1];
+    const pushed = syncNodes('B','C');
+    renderNodes();
+    log(`  Sync complete. ${pushed} packet(s) exchanged.`,'');
+    simPhase = 2;
+  } else if (simPhase === 2) {
+    log(`[Step ${stepCount}] Verifying C received A's original packets...`,'sync');
+    document.getElementById('code-view').innerHTML = codes[2];
+    const aIds = new Set(nodes.A.packets.map(p=>p.id));
+    const cIds = new Set(nodes.C.packets.map(p=>p.id));
+    const originals = nodes.A.packets.filter(p=>p.origin==='A');
+    const allReached = originals.every(p=>cIds.has(p.id));
+    if (allReached) {
+      log(`  SUCCESS — all of A's packets reached C through silent bridge B`,'done');
+      log(`  A and C never met directly. B was the bridge. This is your Hello World mesh.`,'done');
+    } else {
+      log(`  Some packets did not reach C — check TTL values`,'skip');
+    }
+    document.getElementById('btn-step').disabled = true;
+    simPhase = 3;
+  }
+  renderNodes();
+}
+
+function addPacket() {
+  const msgs = ['Ans: photosynthesis','Score: 95%','Q5: true','Note: see pg4','Img: diagram.png'];
+  const msg = msgs[Math.floor(Math.random()*msgs.length)];
+  const p = makePacket(msg, 'A', MAX_TTL);
+  p.origin = 'A';
+  nodes.A.packets.push(p);
+  log(`[Inject] New packet added to A: "${msg}" (ttl:${MAX_TTL})`,'push');
+  if (simPhase > 0) {
+    simPhase = 0;
+    document.getElementById('btn-step').disabled = false;
+    log(`  Simulation reset to re-run sync with new packet`,'');
+    nodes.B.packets = [];
+    nodes.C.packets = [];
+  }
+  renderNodes();
+}
+
+function resetSim() { initSim(); }
+
+initSim();
+</script>
