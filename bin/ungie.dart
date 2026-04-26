@@ -35,7 +35,7 @@ void main() async {
   scheduler.start();
 
   // Wait 6 cycles then stop and verify
-  await Future.delayed(const Duration(milliseconds: 5200));
+  await Future.delayed(const Duration(milliseconds: 10400));
   scheduler.stop();
 
   // Final verification — did all nodes get all packets?
