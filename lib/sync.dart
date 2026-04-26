@@ -27,7 +27,7 @@ class SyncEngine {
     for (final packet in bNeeds) {
       if (packet.ttl > 0) {
         b.receive(packet.forward());
-        log.add('  → A pushed "${packet.content}" to B (ttl ${packet.ttl} → ${packet.ttl - 1})');
+        log.add('  → ${a.id} pushed "${packet.content}" to ${b.id} (ttl ${packet.ttl} → ${packet.ttl - 1})');
       } else {
         log.add('  ✗ "${packet.content}" TTL=0, not forwarded');
       }
@@ -37,7 +37,7 @@ class SyncEngine {
     for (final packet in aNeeds) {
       if (packet.ttl > 0) {
         a.receive(packet.forward());
-        log.add('  → B pushed "${packet.content}" to A (ttl ${packet.ttl} → ${packet.ttl - 1})');
+        log.add('  → ${b.id} pushed "${packet.content}" to ${a.id} (ttl ${packet.ttl} → ${packet.ttl - 1})');
       } else {
         log.add('  ✗ "${packet.content}" TTL=0, not forwarded');
       }
