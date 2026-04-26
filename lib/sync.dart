@@ -48,8 +48,13 @@ class SyncEngine {
 
   // Find packets that [from] has but [against] lacks
   static List<Packet> _missing({required Node from, required Node against}) {
-    return from.packets.values
+    final missing = from.packets.values
         .where((p) => !against.has(p.id))
         .toList();
+
+    // Priority queue — short content (text) before long content (images)
+    missing.sort((a, b) => a.content.length.compareTo(b.content.length));
+
+    return missing;
   }
 }

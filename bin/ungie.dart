@@ -21,9 +21,10 @@ void main() {
   final nodeB = Node(id: 'B');
   final nodeC = Node(id: 'C');
 
-  // Node A creates two packets
-  nodeA.createPacket('Hello from A');
+  // Node A creates three packets
   nodeA.createPacket('Answer: 42');
+  nodeA.createPacket('Hello from A');
+  nodeA.createPacket('img:photo_diagram_page4_highres.png.base64.data');
 
   print('INITIAL STATE');
   print('  $nodeA');
