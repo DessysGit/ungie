@@ -1,65 +1,62 @@
 // bin/ungie.dart
-// The Ungie mesh simulation runner.
-// Proves a message travels from Node A to Node C
-// through silent bridge Node B.
+// Ungie mesh simulation v0.2 — self-running scheduler
 
+import 'dart:async';
 import '../lib/node.dart';
-import '../lib/sync.dart';
+import '../lib/scheduler.dart';
 
-void main() {
+void main() async {
   print('');
   print('╔══════════════════════════════════╗');
-  print('║       UNGIE — Hello World        ║');
-  print('║       Mesh Simulation v0.1       ║');
+  print('║       UNGIE — Scheduler          ║');
+  print('║       Mesh Simulation v0.2       ║');
   print('╚══════════════════════════════════╝');
   print('');
 
-  // --- SETUP ---
-  // Three simulated phones.
-  // A knows B. B knows C. A and C have never met.
-  final nodeA = Node(id: 'A');
-  final nodeB = Node(id: 'B');
-  final nodeC = Node(id: 'C');
+  // Five nodes — a realistic small classroom mesh
+  final nodes = [
+    Node(id: 'A'),
+    Node(id: 'B'),
+    Node(id: 'C'),
+    Node(id: 'D'),
+    Node(id: 'E'),
+  ];
 
-  // Node A creates three packets
-  nodeA.createPacket('Answer: 42');
-  nodeA.createPacket('Hello from A');
-  nodeA.createPacket('img:photo_diagram_page4_highres.png.base64.data');
+  // Only A starts with data
+  nodes[0].createPacket('Answer: 42');
+  nodes[0].createPacket('Note: see page 4');
+  nodes[0].createPacket('img:diagram.png.base64');
 
-  print('INITIAL STATE');
-  print('  $nodeA');
-  print('  $nodeB');
-  print('  $nodeC');
+  print('INITIAL STATE — only A has data');
   print('');
 
-  // --- PHASE 1: A meets B ---
-  print('PHASE 1 — A and B meet');
-  final log1 = SyncEngine.sync(nodeA, nodeB);
-  log1.forEach(print);
+  // Start the mesh — let it run for 6 cycles then stop
+  final scheduler = Scheduler(nodes: nodes);
+  scheduler.start();
+
+  // Wait 6 cycles then stop and verify
+  await Future.delayed(const Duration(milliseconds: 5200));
+  scheduler.stop();
+
+  // Final verification — did all nodes get all packets?
   print('');
-
-  // --- PHASE 2: B meets C ---
-  print('PHASE 2 — B and C meet (A is not here)');
-  final log2 = SyncEngine.sync(nodeB, nodeC);
-  log2.forEach(print);
+  print('FINAL VERIFICATION');
   print('');
+  final total = nodes[0].packets.length;
+  bool allReached = true;
 
-  // --- VERIFY ---
-  print('FINAL STATE');
-  print('  $nodeA');
-  print('  $nodeB');
-  print('  $nodeC');
+  for (final node in nodes) {
+    final has = node.packets.length;
+    final status = has == total ? '✓' : '✗';
+    print('  $status Node ${node.id}: $has / $total packets');
+    if (has != total) allReached = false;
+  }
+
   print('');
-
-  // Did all of A's packets reach C?
-  final aPackets = nodeA.packets.values.where((p) => p.origin == 'A');
-  final allReached = aPackets.every((p) => nodeC.has(p.id));
-
   if (allReached) {
-    print('✓ SUCCESS — A\'s packets reached C through silent bridge B.');
-    print('  A and C never met directly. This is your Hello World mesh.');
+    print('✓ All nodes reached full sync through gossip alone.');
   } else {
-    print('✗ FAILED — some packets did not reach C. Check TTL values.');
+    print('  Some nodes not yet synced — mesh needs more cycles.');
   }
   print('');
 }
