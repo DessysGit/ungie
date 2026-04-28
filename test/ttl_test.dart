@@ -3,8 +3,8 @@
 // and never forwarded to the next node.
 
 import 'package:test/test.dart';
-import '../lib/node.dart';
-import '../lib/sync.dart';
+import 'package:ungie/node.dart';
+import 'package:ungie/sync.dart';
 
 void main() {
   group('TTL expiry', () {
