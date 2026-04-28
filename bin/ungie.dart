@@ -1,65 +1,70 @@
 // bin/ungie.dart
-// The Ungie mesh simulation runner.
-// Proves a message travels from Node A to Node C
-// through silent bridge Node B.
+// Ungie mesh simulation v0.3 — 30-node stress test
 
+import 'dart:async';
 import '../lib/node.dart';
-import '../lib/sync.dart';
+import '../lib/stress_scheduler.dart';
 
-void main() {
+void main() async {
   print('');
   print('╔══════════════════════════════════╗');
-  print('║       UNGIE — Hello World        ║');
-  print('║       Mesh Simulation v0.1       ║');
+  print('║       UNGIE — Stress Test        ║');
+  print('║       Mesh Simulation v0.3       ║');
   print('╚══════════════════════════════════╝');
   print('');
+  print('  Initializing 30 nodes...');
 
-  // --- SETUP ---
-  // Three simulated phones.
-  // A knows B. B knows C. A and C have never met.
-  final nodeA = Node(id: 'A');
-  final nodeB = Node(id: 'B');
-  final nodeC = Node(id: 'C');
+  // Generate 30 nodes
+  final nodes = List.generate(
+    30,
+    (i) => Node(id: String.fromCharCode(65 + (i % 26)) + (i ~/ 26 > 0 ? '${i ~/ 26}' : '')),
+  );
 
-  // Node A creates three packets
-  nodeA.createPacket('Answer: 42');
-  nodeA.createPacket('Hello from A');
-  nodeA.createPacket('img:photo_diagram_page4_highres.png.base64.data');
+  // Only node A originates data — 3 packets
+  const targetPackets = 3;
+  nodes[0].createPacket('Answer: 42');
+  nodes[0].createPacket('Note: see page 4');
+  nodes[0].createPacket('img:diagram.png.base64');
 
-  print('INITIAL STATE');
-  print('  $nodeA');
-  print('  $nodeB');
-  print('  $nodeC');
+  print('  Node A seeded with $targetPackets packets');
+  print('  Starting stress test — 30 nodes, random sleep/wake');
   print('');
 
-  // --- PHASE 1: A meets B ---
-  print('PHASE 1 — A and B meet');
-  final log1 = SyncEngine.sync(nodeA, nodeB);
-  log1.forEach(print);
+  bool fullSyncAchieved = false;
+
+  final scheduler = StressScheduler(
+    nodes: nodes,
+    targetPackets: targetPackets,
+    interval: const Duration(milliseconds: 200),
+    onFullSync: () => fullSyncAchieved = true,
+  );
+
+  scheduler.start();
+
+  // Progress reporter every 2 seconds
+  int reportCount = 0;
+  final reporter = Timer.periodic(const Duration(seconds: 2), (_) {
+    reportCount++;
+    final synced = nodes.where((n) => n.packets.length == targetPackets).length;
+    final pct = (synced / nodes.length * 100).round();
+    final bar = '█' * (pct ~/ 5) + '░' * (20 - pct ~/ 5);
+    print('  [$bar] $pct% ($synced/30 nodes synced)');
+  });
+
+  // Run for max 20 seconds
+  await Future.delayed(const Duration(seconds: 20));
+  reporter.cancel();
+  scheduler.stop();
+
   print('');
+  scheduler.metrics.printReport();
 
-  // --- PHASE 2: B meets C ---
-  print('PHASE 2 — B and C meet (A is not here)');
-  final log2 = SyncEngine.sync(nodeB, nodeC);
-  log2.forEach(print);
-  print('');
-
-  // --- VERIFY ---
-  print('FINAL STATE');
-  print('  $nodeA');
-  print('  $nodeB');
-  print('  $nodeC');
-  print('');
-
-  // Did all of A's packets reach C?
-  final aPackets = nodeA.packets.values.where((p) => p.origin == 'A');
-  final allReached = aPackets.every((p) => nodeC.has(p.id));
-
-  if (allReached) {
-    print('✓ SUCCESS — A\'s packets reached C through silent bridge B.');
-    print('  A and C never met directly. This is your Hello World mesh.');
-  } else {
-    print('✗ FAILED — some packets did not reach C. Check TTL values.');
+  // Final node breakdown
+  print('  Node breakdown:');
+  for (final node in nodes) {
+    final status = node.packets.length == targetPackets ? '✓' : '✗';
+    final bar = '█' * node.packets.length + '░' * (targetPackets - node.packets.length);
+    print('  $status ${node.id.padRight(3)} $bar');
   }
   print('');
 }
