@@ -50,7 +50,7 @@ class Metrics {
     print('');
     print('  Sync activity');
     print('  Total syncs:      $totalSyncs');
-    print('  Redundant syncs:  $redundantSyncs (${(redundancyRate * 100).round()}%)');
+    print('  Redundant syncs:  $redundantSyncs (${(redundancyRate*100).round()}%)');
     print('  TTL blocks:       $blockedByTTL');
     print('  Collision events: $collisionEvents');
     print('');
