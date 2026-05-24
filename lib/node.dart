@@ -10,7 +10,7 @@ import 'packet.dart';
 class Node {
   final String id;                   // e.g. "A", "B", "C"
   final Map<String, Packet> packets; // keyed by packet ID for fast lookup
-  bool awake = true;                 // sleep/wake state
+  bool awake = true; // sleep/wake state
 
   Node({required this.id}) : packets = {};
 

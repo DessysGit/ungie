@@ -77,9 +77,7 @@ class StressScheduler {
       final ttlBlocks = log.where((l) => l.contains('TTL=0')).length;
 
       metrics.recordSync(wasRedundant: wasRedundant);
-      for (int t = 0; t < ttlBlocks; t++) {
-        metrics.recordTTLBlock();
-      }
+      for (int t = 0; t < ttlBlocks; t++) metrics.recordTTLBlock();
     }
 
     // Check if full sync achieved
