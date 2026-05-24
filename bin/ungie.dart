@@ -2,8 +2,8 @@
 // Ungie mesh simulation v0.3 — 30-node stress test
 
 import 'dart:async';
-import '../lib/node.dart';
-import '../lib/stress_scheduler.dart';
+import 'package:ungie/node.dart';
+import 'package:ungie/stress_scheduler.dart';
 
 void main() async {
   print('');
@@ -14,13 +14,11 @@ void main() async {
   print('');
   print('  Initializing 30 nodes...');
 
-  // Generate 30 nodes
   final nodes = List.generate(
     30,
     (i) => Node(id: String.fromCharCode(65 + (i % 26)) + (i ~/ 26 > 0 ? '${i ~/ 26}' : '')),
   );
 
-  // Only node A originates data — 3 packets
   const targetPackets = 3;
   nodes[0].createPacket('Answer: 42');
   nodes[0].createPacket('Note: see page 4');
