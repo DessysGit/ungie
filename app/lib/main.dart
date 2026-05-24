@@ -144,20 +144,25 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       backgroundColor: const Color(0xFF0F0F13),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F0F13),
-        title: const Text(
-          'Ungie Mesh',
-          style: TextStyle(
-            color: Color(0xFF7F77DD),
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        subtitle: Text(
-          _status,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
-            fontSize: 12,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ungie Mesh',
+              style: TextStyle(
+                color: Color(0xFF7F77DD),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+            Text(
+              _status,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
       ),
       body: Column(
@@ -230,9 +235,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.03),
               border: Border(
-                top: BorderSide(
-                  color: Colors.white.withOpacity(0.08),
-                ),
+                top: BorderSide(color: Colors.white.withOpacity(0.08)),
               ),
             ),
             child: Row(
@@ -241,7 +244,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 _Stat(label: 'Peers found', value: '${_devices.length}'),
                 _Stat(
                   label: 'Strong signal',
-                  value: '${_devices.values.where((d) => d.rssi >= -60).length}',
+                  value:
+                      '${_devices.values.where((d) => d.rssi >= -60).length}',
                 ),
                 _Stat(
                   label: 'Packets held',
@@ -268,9 +272,7 @@ class _DeviceTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.08),
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Row(
         children: [
@@ -357,10 +359,7 @@ class _Stat extends StatelessWidget {
         ),
         Text(
           label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.4),
-            fontSize: 11,
-          ),
+          style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
         ),
       ],
     );
