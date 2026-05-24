@@ -16,10 +16,13 @@ dependencies:
     path: ../
 
   # BLE scanning and advertising
-  flutter_blue_plus: ^1.35.3
+  flutter_blue_plus: ^2.2.0
 
   # Google Nearby Connections — device discovery + data transfer
   nearby_connections: ^4.1.0
+
+  # Runtime permissions — required for BLE on Android 12+
+  permission_handler: ^11.3.1
 
   # Crypto
   crypto: ^3.0.3
