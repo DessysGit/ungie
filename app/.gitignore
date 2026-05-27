@@ -23,6 +23,7 @@ migrate_working_dir/
 **/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins-dependencies
+.flutter-plugins
 .pub-cache/
 .pub/
 /build/
@@ -41,8 +42,12 @@ app.*.map.json
 /android/app/build/
 android/app/build/
 
-# Generated files
-.flutter-plugins
-GeneratedPluginRegistrant.java
-GeneratedPluginRegistrant.m
+# All generated plugin registrant files
+**/GeneratedPluginRegistrant.java
+**/GeneratedPluginRegistrant.h
+**/GeneratedPluginRegistrant.m
+**/GeneratedPluginRegistrant.swift
 **/problems-report.html
+
+# Local machine config
+android/local.properties
