@@ -1,7 +1,6 @@
 // app/lib/mesh_screen.dart
-// Live mesh visualization — runs the real gossip engine
-// and shows packets flowing between nodes in real time.
-// No Scaffold — rendered inside HomeScreen's Scaffold.
+// Live mesh visualization.
+// MeshController is passed in from HomeScreen — persists across tabs.
 
 import 'dart:async';
 import 'dart:math';
@@ -101,13 +100,11 @@ class MeshController extends ChangeNotifier {
       }
     }
 
-    final maxPackets =
-        nodes.map((n) => n.packets.length).reduce(max);
-    final allSynced = nodes.every(
-        (n) => n.packets.length == maxPackets && maxPackets > 0);
+    final maxPackets = nodes.map((n) => n.packets.length).reduce(max);
+    final allSynced =
+        nodes.every((n) => n.packets.length == maxPackets && maxPackets > 0);
     if (allSynced && maxPackets > 0) {
-      _addLog(
-          '✓ All nodes in sync — $maxPackets packet(s)', LogType.done);
+      _addLog('✓ All nodes in sync — $maxPackets packet(s)', LogType.done);
     }
 
     notifyListeners();
@@ -123,28 +120,25 @@ class MeshController extends ChangeNotifier {
   int get awakeCount => nodes.where((n) => n.awake).length;
 }
 
-// ── Screen (no Scaffold) ───────────────────────────────────
+// ── Screen ─────────────────────────────────────────────────
 class MeshScreen extends StatefulWidget {
-  const MeshScreen({super.key});
+  final MeshController controller;
+
+  const MeshScreen({super.key, required this.controller});
 
   @override
   State<MeshScreen> createState() => _MeshScreenState();
 }
 
 class _MeshScreenState extends State<MeshScreen> {
-  late MeshController _ctrl;
   final ScrollController _logScroll = ScrollController();
   final TextEditingController _inputCtrl = TextEditingController();
 
-  static const _nodeIds = ['A', 'B', 'C', 'D', 'E'];
+  MeshController get _ctrl => widget.controller;
 
   @override
   void initState() {
     super.initState();
-    final nodes = _nodeIds.map((id) => Node(id: id)).toList();
-    nodes[0].createPacket('Answer: 42');
-    nodes[0].createPacket('Note: see page 4');
-    _ctrl = MeshController(nodes: nodes);
     _ctrl.addListener(_onUpdate);
   }
 
@@ -165,8 +159,9 @@ class _MeshScreenState extends State<MeshScreen> {
 
   @override
   void dispose() {
+    // Only remove listener — do NOT stop or dispose the controller
+    // It lives in HomeScreen and keeps running between tab switches
     _ctrl.removeListener(_onUpdate);
-    _ctrl.stop();
     _logScroll.dispose();
     _inputCtrl.dispose();
     super.dispose();
@@ -182,7 +177,9 @@ class _MeshScreenState extends State<MeshScreen> {
       isScrollControlled: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-          left: 20, right: 20, top: 20,
+          left: 20,
+          right: 20,
+          top: 20,
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
         ),
         child: Column(
@@ -196,8 +193,7 @@ class _MeshScreenState extends State<MeshScreen> {
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             const Text('Creates a packet at a random awake node',
-                style:
-                    TextStyle(color: Color(0x80FFFFFF), fontSize: 12)),
+                style: TextStyle(color: Color(0x80FFFFFF), fontSize: 12)),
             const SizedBox(height: 16),
             TextField(
               controller: _inputCtrl,
@@ -205,8 +201,7 @@ class _MeshScreenState extends State<MeshScreen> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'e.g. "Answer: photosynthesis"',
-                hintStyle:
-                    const TextStyle(color: Color(0x40FFFFFF)),
+                hintStyle: const TextStyle(color: Color(0x40FFFFFF)),
                 filled: true,
                 fillColor: const Color(0x14FFFFFF),
                 border: OutlineInputBorder(
@@ -250,13 +245,12 @@ class _MeshScreenState extends State<MeshScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ── Controls row ────────────────────────────────────
+        // ── Controls ───────────────────────────────────────
         Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 10),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: const BoxDecoration(
-            border:
-                Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+            border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
           ),
           child: Row(
             children: [
@@ -264,25 +258,22 @@ class _MeshScreenState extends State<MeshScreen> {
                 child: Text(
                   _ctrl.running
                       ? 'Cycle ${_ctrl.cycle} · ${_ctrl.awakeCount}/${_ctrl.nodes.length} awake'
-                      : 'Mesh paused — tap ▶ to start',
+                      : 'Mesh paused — tap Start',
                   style: const TextStyle(
                       color: Color(0x80FFFFFF), fontSize: 12),
                 ),
               ),
-              // Reset
               IconButton(
                 icon: const Icon(Icons.refresh,
                     color: Color(0x60FFFFFF), size: 20),
                 onPressed: _ctrl.reset,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                    minWidth: 36, minHeight: 36),
+                constraints:
+                    const BoxConstraints(minWidth: 36, minHeight: 36),
               ),
               const SizedBox(width: 4),
-              // Play/pause
               GestureDetector(
-                onTap:
-                    _ctrl.running ? _ctrl.stop : _ctrl.start,
+                onTap: _ctrl.running ? _ctrl.stop : _ctrl.start,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 8),
@@ -294,9 +285,7 @@ class _MeshScreenState extends State<MeshScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        _ctrl.running
-                            ? Icons.pause
-                            : Icons.play_arrow,
+                        _ctrl.running ? Icons.pause : Icons.play_arrow,
                         color: Colors.white,
                         size: 18,
                       ),
@@ -316,27 +305,23 @@ class _MeshScreenState extends State<MeshScreen> {
           ),
         ),
 
-        // ── Node health bars ────────────────────────────────
+        // ── Node health bars ───────────────────────────────
         Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 12),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: const BoxDecoration(
-            border:
-                Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+            border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
           ),
           child: Row(
             children: _ctrl.nodes.map((node) {
               final count = node.packets.length;
-              final maxPkts = _ctrl.nodes
-                  .map((n) => n.packets.length)
-                  .fold(0, max);
-              final fill = maxPkts == 0
-                  ? 0.0
-                  : count / maxPkts.toDouble();
+              final maxPkts =
+                  _ctrl.nodes.map((n) => n.packets.length).fold(0, max);
+              final fill =
+                  maxPkts == 0 ? 0.0 : count / maxPkts.toDouble();
               return Expanded(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: _NodeCard(
                     id: node.id,
                     awake: node.awake,
@@ -349,13 +334,12 @@ class _MeshScreenState extends State<MeshScreen> {
           ),
         ),
 
-        // ── Stats row ───────────────────────────────────────
+        // ── Stats ──────────────────────────────────────────
         Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 20, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           decoration: const BoxDecoration(
-            border:
-                Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+            border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -370,14 +354,13 @@ class _MeshScreenState extends State<MeshScreen> {
                   color: const Color(0xFF1D9E75)),
               _Stat(
                   label: 'Awake',
-                  value:
-                      '${_ctrl.awakeCount}/${_ctrl.nodes.length}',
+                  value: '${_ctrl.awakeCount}/${_ctrl.nodes.length}',
                   color: const Color(0xFFBA7517)),
             ],
           ),
         ),
 
-        // ── Live gossip log ─────────────────────────────────
+        // ── Log ────────────────────────────────────────────
         Expanded(
           child: _ctrl.log.isEmpty
               ? Center(
@@ -389,14 +372,11 @@ class _MeshScreenState extends State<MeshScreen> {
                       const SizedBox(height: 16),
                       const Text('Mesh is ready',
                           style: TextStyle(
-                              color: Color(0x80FFFFFF),
-                              fontSize: 15)),
+                              color: Color(0x80FFFFFF), fontSize: 15)),
                       const SizedBox(height: 6),
-                      const Text(
-                          'Watch packets gossip between nodes',
+                      const Text('Watch packets gossip between nodes',
                           style: TextStyle(
-                              color: Color(0x40FFFFFF),
-                              fontSize: 12)),
+                              color: Color(0x40FFFFFF), fontSize: 12)),
                       const SizedBox(height: 24),
                       GestureDetector(
                         onTap: _ctrl.start,
@@ -405,21 +385,18 @@ class _MeshScreenState extends State<MeshScreen> {
                               horizontal: 32, vertical: 14),
                           decoration: BoxDecoration(
                             color: const Color(0xFF7F77DD),
-                            borderRadius:
-                                BorderRadius.circular(30),
+                            borderRadius: BorderRadius.circular(30),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.play_arrow,
-                                  color: Colors.white),
+                              Icon(Icons.play_arrow, color: Colors.white),
                               SizedBox(width: 8),
                               Text('Start mesh',
                                   style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 15,
-                                      fontWeight:
-                                          FontWeight.w600)),
+                                      fontWeight: FontWeight.w600)),
                             ],
                           ),
                         ),
@@ -432,18 +409,16 @@ class _MeshScreenState extends State<MeshScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 8),
                   itemCount: _ctrl.log.length,
-                  itemBuilder: (ctx, i) {
-                    return _LogLine(entry: _ctrl.log[i]);
-                  },
+                  itemBuilder: (ctx, i) =>
+                      _LogLine(entry: _ctrl.log[i]),
                 ),
         ),
 
-        // ── Inject button ───────────────────────────────────
+        // ── Inject ─────────────────────────────────────────
         Container(
           padding: const EdgeInsets.all(12),
           decoration: const BoxDecoration(
-            border:
-                Border(top: BorderSide(color: Color(0x14FFFFFF))),
+            border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
           ),
           child: SizedBox(
             width: double.infinity,
@@ -454,10 +429,8 @@ class _MeshScreenState extends State<MeshScreen> {
               label: const Text('Inject packet into mesh',
                   style: TextStyle(color: Color(0xFF7F77DD))),
               style: OutlinedButton.styleFrom(
-                side:
-                    const BorderSide(color: Color(0x337F77DD)),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12),
+                side: const BorderSide(color: Color(0x337F77DD)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
@@ -467,7 +440,7 @@ class _MeshScreenState extends State<MeshScreen> {
   }
 }
 
-// ── Node card widget ───────────────────────────────────────
+// ── Node card ──────────────────────────────────────────────
 class _NodeCard extends StatelessWidget {
   final String id;
   final bool awake;
@@ -531,7 +504,7 @@ class _NodeCard extends StatelessWidget {
   }
 }
 
-// ── Log line widget ────────────────────────────────────────
+// ── Log line ───────────────────────────────────────────────
 class _LogLine extends StatelessWidget {
   final LogEntry entry;
   const _LogLine({required this.entry});
@@ -561,15 +534,13 @@ class _LogLine extends StatelessWidget {
   }
 }
 
-// ── Stat widget ────────────────────────────────────────────
+// ── Stat ───────────────────────────────────────────────────
 class _Stat extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
   const _Stat(
-      {required this.label,
-      required this.value,
-      required this.color});
+      {required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {

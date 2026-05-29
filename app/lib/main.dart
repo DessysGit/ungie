@@ -1,10 +1,11 @@
 // app/lib/main.dart
-// Ungie — two screens with working tab navigation
+// Ungie — MeshController lives in HomeScreen, persists across tabs
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:ungie/node.dart';
 import 'mesh_screen.dart';
 
 void main() {
@@ -42,6 +43,26 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
 
+  // MeshController lives here — survives tab switches
+  late final MeshController _meshCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final nodes = ['A', 'B', 'C', 'D', 'E']
+        .map((id) => Node(id: id))
+        .toList();
+    nodes[0].createPacket('Answer: 42');
+    nodes[0].createPacket('Note: see page 4');
+    _meshCtrl = MeshController(nodes: nodes);
+  }
+
+  @override
+  void dispose() {
+    _meshCtrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,7 +79,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      body: _tab == 0 ? const DiscoveryBody() : const MeshScreen(),
+      body: _tab == 0
+          ? const DiscoveryBody()
+          : MeshScreen(controller: _meshCtrl),
       bottomNavigationBar: SafeArea(
         child: Container(
           height: 60,
@@ -139,7 +162,7 @@ class _Tab extends StatelessWidget {
   }
 }
 
-// ── Discovery body (no Scaffold) ───────────────────────────
+// ── Discovery body ─────────────────────────────────────────
 class DiscoveryBody extends StatefulWidget {
   const DiscoveryBody({super.key});
 
@@ -179,8 +202,8 @@ class _DiscoveryBodyState extends State<DiscoveryBody> {
       Permission.bluetoothAdvertise,
       Permission.locationWhenInUse,
     ].request();
-    return res.values
-        .every((s) => s == PermissionStatus.granted || s == PermissionStatus.limited);
+    return res.values.every(
+        (s) => s == PermissionStatus.granted || s == PermissionStatus.limited);
   }
 
   Future<void> _startScan() async {
@@ -239,7 +262,6 @@ class _DiscoveryBodyState extends State<DiscoveryBody> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Status
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
@@ -250,7 +272,6 @@ class _DiscoveryBodyState extends State<DiscoveryBody> {
             ],
           ),
         ),
-        // Scan button
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: SizedBox(
@@ -264,8 +285,8 @@ class _DiscoveryBodyState extends State<DiscoveryBody> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.radar),
-              label: Text(
-                  _isScanning ? 'Stop scanning' : 'Scan for peers'),
+              label:
+                  Text(_isScanning ? 'Stop scanning' : 'Scan for peers'),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF7F77DD),
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -274,7 +295,6 @@ class _DiscoveryBodyState extends State<DiscoveryBody> {
           ),
         ),
         const SizedBox(height: 12),
-        // Device list
         Expanded(
           child: _devices.isEmpty
               ? Center(
@@ -295,8 +315,7 @@ class _DiscoveryBodyState extends State<DiscoveryBody> {
                   ),
                 )
               : ListView.builder(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _devices.length,
                   itemBuilder: (ctx, i) {
                     final d = _devices.values.toList()[i];
@@ -304,20 +323,16 @@ class _DiscoveryBodyState extends State<DiscoveryBody> {
                   },
                 ),
         ),
-        // Stats
         Container(
           padding: const EdgeInsets.all(16),
           decoration: const BoxDecoration(
             color: Color(0x08FFFFFF),
-            border:
-                Border(top: BorderSide(color: Color(0x14FFFFFF))),
+            border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _Stat(
-                  label: 'Peers found',
-                  value: '${_devices.length}'),
+              _Stat(label: 'Peers found', value: '${_devices.length}'),
               _Stat(
                   label: 'Strong signal',
                   value:

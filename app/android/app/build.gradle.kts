@@ -36,3 +36,17 @@ android {
 flutter {
     source = "../.."
 }
+
+// Copy APK to where Flutter expects it after every build
+tasks.whenTaskAdded {
+    if (name == "assembleDebug") {
+        doLast {
+            val src = file("build/outputs/apk/debug/app-debug.apk")
+            val dst = file("../../build/app/outputs/flutter-apk/app-debug.apk")
+            if (src.exists()) {
+                dst.parentFile.mkdirs()
+                src.copyTo(dst, overwrite = true)
+            }
+        }
+    }
+}
