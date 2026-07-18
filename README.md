@@ -35,8 +35,10 @@ How information is structured, addressed, and compared efficiently.
 ### Layer 3 — Security
 How the mesh knows who belongs and keeps traffic private.
 
-- **Zero-Knowledge Membership**: The teacher generates a cryptographic class secret. Every enrolled device receives a token derived from that secret. When two phones meet, one can prove its token is valid without revealing the token itself. A stranger's phone with no token fails immediately. The verifying phone never learns which student it is talking to.
-- **Packet Obfuscation**: Mesh advertisements are crafted to mimic standard BLE service profiles (AirPods, fitness trackers). To a passive scanner, Ungie traffic looks like background Bluetooth noise.
+- **HMAC Membership Tokens**: The teacher generates a cryptographic group secret. Every enrolled device derives a unique token from that secret using HMAC-SHA256. When two phones meet, they exchange challenge-response proofs. A valid response proves the device holds the group secret without revealing the secret itself. A stranger's phone fails immediately. The verifying phone never learns which member it is talking to.
+- **Packet Obfuscation**: Mesh BLE advertisements are crafted to mimic Apple's Nearby protocol format byte-for-byte. To any passive BLE scanner, Ungie traffic is indistinguishable from background iPhone/MacBook Bluetooth noise. Only a device with the correct group secret can decode the hidden mesh payload.
+- **Replay Attack Prevention**: Every challenge is a cryptographically random nonce. Recording a valid handshake and replaying it later fails because the challenge will always be different.
+- **Constant-Time Verification**: Token comparison uses constant-time equality to prevent timing attacks — attackers cannot guess tokens byte by byte by measuring how long verification takes.
 
 ### Layer 4 — Application
 How the gossip protocol coordinates across many devices over time.
@@ -57,13 +59,17 @@ ungie/
 │   ├── sync.dart               # The gossip engine (anti-entropy sync)
 │   ├── scheduler.dart          # Sleep/wake heartbeat scheduler
 │   ├── stress_scheduler.dart   # High-pressure 30-node scheduler
-│   └── metrics.dart            # Mesh health tracking
+│   ├── metrics.dart            # Mesh health tracking
+│   ├── security.dart           # HMAC membership tokens + challenge-response
+│   └── obfuscation.dart        # BLE packet disguised as Apple Nearby traffic
 │
 ├── bin/
 │   └── ungie.dart              # CLI simulation runner
 │
 ├── test/
-│   └── ttl_test.dart           # Protocol rule tests
+│   ├── ttl_test.dart           # Protocol rule tests (4 tests)
+│   ├── security_test.dart      # Membership token tests (6 tests)
+│   └── obfuscation_test.dart   # Packet obfuscation tests (7 tests)
 │
 ├── simulations/                # Simulation outputs and notes
 │
@@ -128,10 +134,71 @@ This runs a 30-node stress test. 30 simulated phones start with only Node A hold
 dart test
 ```
 
-Tests verify the three core TTL rules:
-- A packet with TTL=0 is never forwarded
-- A packet with TTL=1 reaches the next node but dies there
-- A packet with TTL=3 travels the full A→B→C chain
+17 tests across three test files covering every protocol guarantee:
+
+**TTL tests (4)** — packet blocked at zero hops, reaches B but not C at TTL=1, travels full chain at TTL=3, plus the framework test.
+
+**Security tests (6):**
+- Valid member passes verification
+- Stranger with wrong secret fails
+- Token derivation is deterministic
+- Different devices get different tokens (anonymity preserved)
+- Every challenge is unique (replay attack prevention)
+- Token does not expose the group secret
+
+**Obfuscation tests (7):**
+- Encoded advertisement is exactly 31 bytes
+- Looks like Apple manufacturer data to passive scanners
+- Valid member can decode their own advertisement
+- TTL and priority survive encode/decode round trip
+- Stranger with different secret cannot decode
+- Different mesh ID cannot decode
+- Timestamp survives encode/decode
+
+---
+
+## The Security Layer
+
+### How membership works
+
+```
+Teacher                    Student Device
+   |                            |
+   |-- generates group secret ->|
+   |                            |-- derives token from secret
+   |                            |
+   |        Two devices meet    |
+   |                            |
+Device A                   Device B
+   |-- sends random challenge ->|
+   |<-- HMAC response ----------|
+   |-- verifies response ------>|
+   |   (pass = member,          |
+   |    fail = stranger)        |
+```
+
+The group secret never travels over the radio. Only challenge-response proofs do. A passive observer who captures every byte of the handshake cannot reconstruct the secret or impersonate a member.
+
+### How obfuscation works
+
+A real Apple Nearby BLE advertisement looks like:
+
+```
+[0x4C 0x00] [0x10] [length] [status bytes...]
+  Apple ID   Type   Len      Payload
+```
+
+An Ungie mesh advertisement looks identical to a passive scanner:
+
+```
+[0x4C 0x00] [0x10] [0x1B] [0xA7] [ttl|priority] [mesh fingerprint 4B]
+  Apple ID   Type   Len   Magic   TTL/Priority    Group fingerprint
+
+[payload hash 16B] [timestamp 4B] [HMAC noise 3B]
+  Data fingerprint   When sent     Looks like Apple continuation data
+```
+
+The magic byte `0xA7` is hidden inside what looks like an Apple status flag. The mesh fingerprint looks like Apple device state bytes. The payload hash and timestamp are indistinguishable from Apple continuation data. Only a device with the correct group secret can identify and decode the advertisement.
 
 ---
 
@@ -195,6 +262,8 @@ NEARBY_WIFI_DEVICES
 | BLE discovery — real devices detected on Android | ✅ |
 | Live mesh visualizer — gossip visible in real time on device | ✅ |
 | Persistent mesh controller — gossip runs across tab switches | ✅ |
+| HMAC membership tokens — 6 security guarantees tested | ✅ |
+| Packet obfuscation — Apple Nearby mimicry, 7 guarantees tested | ✅ |
 
 ### In Progress
 
@@ -207,8 +276,8 @@ NEARBY_WIFI_DEVICES
 
 | Milestone | Status |
 |---|---|
-| ZK membership tokens — cryptographic class identity | ⬜ |
-| Packet obfuscation — mesh traffic disguised as BLE noise | ⬜ |
+| Wire security layer into BLE handshake | ⬜ |
+| Wire obfuscation into BLE advertisement encoding | ⬜ |
 | iOS build via Codemagic cloud CI | ⬜ |
 | Peer-to-peer sync screen | ⬜ |
 
@@ -226,14 +295,20 @@ NEARBY_WIFI_DEVICES
 
 **Duty cycle** — The fraction of time a node spends awake with its radio on. Lower duty cycle means longer battery life but slower convergence. The scheduler finds the minimum duty cycle that still guarantees overlap between nearby nodes.
 
-**Zero-knowledge proof** — A cryptographic method for proving you know a secret without revealing the secret. Used here so devices can prove class membership without revealing their identity.
+**HMAC (Hash-based Message Authentication Code)** — A cryptographic function that proves knowledge of a secret key without revealing it. Used here for membership tokens and challenge-response proofs.
+
+**Replay attack** — An attack where a valid recorded message is reused later to impersonate the original sender. Prevented in Ungie by using a unique random challenge every handshake.
+
+**Constant-time comparison** — A comparison method that takes the same amount of time regardless of where the first difference occurs. Prevents timing attacks where an attacker guesses a secret byte by byte based on response time.
+
+**Packet obfuscation** — Disguising mesh network traffic as a known harmless protocol. Prevents a passive observer from identifying that a mesh network is operating.
 
 ---
 
 ## Dependencies
 
 ### Core (`pubspec.yaml`)
-- `crypto: ^3.0.3` — SHA-256 hashing for content addressing
+- `crypto: ^3.0.3` — SHA-256 hashing and HMAC for content addressing and security
 
 ### App (`app/pubspec.yaml`)
 - `flutter_blue_plus: ^2.2.0` — BLE scanning and advertising
@@ -244,11 +319,13 @@ NEARBY_WIFI_DEVICES
 
 ## Design Principles
 
-**Prove the logic before touching the hardware.** The entire gossip protocol, TTL system, priority queue, sleep/wake scheduler, and 30-node stress test run in pure Dart with zero radio involvement. Only after the logic is proven does it get a radio layer underneath it.
+**Prove the logic before touching the hardware.** The entire gossip protocol, TTL system, priority queue, sleep/wake scheduler, 30-node stress test, security layer, and obfuscation layer all run in pure Dart with zero radio involvement. Only after the logic is proven does it get a radio layer underneath it.
 
 **The transport layer is a plug.** The sync engine (`sync.dart`) takes two `Node` objects and syncs them. It does not care whether those nodes represent simulated objects in memory or real phones connected over Wi-Fi Direct. Swapping the transport does not change the protocol.
 
 **Emergence over orchestration.** No component in Ungie is told to "spread data to all nodes." Each node is only told: "when you meet a neighbour, share what they lack." Full mesh convergence emerges from that single local rule applied repeatedly across random pairings.
+
+**Security through obscurity is not enough — but obscurity still helps.** The obfuscation layer is not the primary security mechanism. Membership tokens provide cryptographic guarantees. Obfuscation adds a second layer that prevents passive discovery of the mesh's existence in the first place.
 
 ---
 

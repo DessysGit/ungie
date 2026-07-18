@@ -2,7 +2,7 @@
 // Proves the membership token system works correctly.
 
 import 'package:test/test.dart';
-import '../lib/security.dart';
+import 'package:ungie/security.dart';
 
 void main() {
   group('Mesh security', () {
