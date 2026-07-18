@@ -39,6 +39,7 @@ How the mesh knows who belongs and keeps traffic private.
 - **Packet Obfuscation**: Mesh BLE advertisements are crafted to mimic Apple's Nearby protocol format byte-for-byte. To any passive BLE scanner, Ungie traffic is indistinguishable from background iPhone/MacBook Bluetooth noise. Only a device with the correct group secret can decode the hidden mesh payload.
 - **Replay Attack Prevention**: Every challenge is a cryptographically random nonce. Recording a valid handshake and replaying it later fails because the challenge will always be different.
 - **Constant-Time Verification**: Token comparison uses constant-time equality to prevent timing attacks — attackers cannot guess tokens byte by byte by measuring how long verification takes.
+- **Handshake Gating**: The `HandshakeEngine` runs the full challenge-response proof before allowing any gossip to flow. Zero data leaks to a stranger before rejection. The handshake completes within 100ms — fast enough for a BLE radio window.
 
 ### Layer 4 — Application
 How the gossip protocol coordinates across many devices over time.
@@ -61,7 +62,8 @@ ungie/
 │   ├── stress_scheduler.dart   # High-pressure 30-node scheduler
 │   ├── metrics.dart            # Mesh health tracking
 │   ├── security.dart           # HMAC membership tokens + challenge-response
-│   └── obfuscation.dart        # BLE packet disguised as Apple Nearby traffic
+│   ├── obfuscation.dart        # BLE packet disguised as Apple Nearby traffic
+│   └── handshake.dart          # Security gates gossip — the mesh gatekeeper
 │
 ├── bin/
 │   └── ungie.dart              # CLI simulation runner
@@ -69,7 +71,8 @@ ungie/
 ├── test/
 │   ├── ttl_test.dart           # Protocol rule tests (4 tests)
 │   ├── security_test.dart      # Membership token tests (6 tests)
-│   └── obfuscation_test.dart   # Packet obfuscation tests (7 tests)
+│   ├── obfuscation_test.dart   # Packet obfuscation tests (7 tests)
+│   └── handshake_test.dart     # Handshake gating tests (7 tests)
 │
 ├── simulations/                # Simulation outputs and notes
 │
@@ -134,7 +137,7 @@ This runs a 30-node stress test. 30 simulated phones start with only Node A hold
 dart test
 ```
 
-17 tests across three test files covering every protocol guarantee:
+24 tests across four test files covering every protocol guarantee:
 
 **TTL tests (4)** — packet blocked at zero hops, reaches B but not C at TTL=1, travels full chain at TTL=3, plus the framework test.
 
@@ -154,6 +157,15 @@ dart test
 - Stranger with different secret cannot decode
 - Different mesh ID cannot decode
 - Timestamp survives encode/decode
+
+**Handshake tests (7):**
+- Valid members handshake and sync successfully
+- Gossip flows after successful handshake
+- Stranger is rejected — no gossip flows
+- Zero data leaks to stranger before rejection
+- Handshake completes within 100ms
+- Multiple sequential handshakes all succeed
+- Handshake outcome is clearly described
 
 ---
 
@@ -178,6 +190,21 @@ Device A                   Device B
 ```
 
 The group secret never travels over the radio. Only challenge-response proofs do. A passive observer who captures every byte of the handshake cannot reconstruct the secret or impersonate a member.
+
+### How the handshake gates gossip
+
+```
+Device A meets Device B via BLE
+            ↓
+A generates a random challenge
+            ↓
+B responds with HMAC(secret, challenge)
+            ↓
+A verifies the response
+            ↓
+PASS → gossip begins     FAIL → connection dropped silently
+                                 zero packets transferred
+```
 
 ### How obfuscation works
 
@@ -264,20 +291,20 @@ NEARBY_WIFI_DEVICES
 | Persistent mesh controller — gossip runs across tab switches | ✅ |
 | HMAC membership tokens — 6 security guarantees tested | ✅ |
 | Packet obfuscation — Apple Nearby mimicry, 7 guarantees tested | ✅ |
+| Handshake engine — security gates gossip, 7 guarantees tested | ✅ |
 
 ### In Progress
 
 | Milestone | Status |
 |---|---|
-| Stage 2 radio — two Ungie instances handshake and sync | ⬜ |
+| Stage 2 radio — two Ungie instances handshake over real BLE | ⬜ |
 | Real gossip over Nearby Connections API | ⬜ |
 
 ### Planned
 
 | Milestone | Status |
 |---|---|
-| Wire security layer into BLE handshake | ⬜ |
-| Wire obfuscation into BLE advertisement encoding | ⬜ |
+| Wire obfuscation into live BLE advertisement encoding | ⬜ |
 | iOS build via Codemagic cloud CI | ⬜ |
 | Peer-to-peer sync screen | ⬜ |
 
@@ -303,6 +330,8 @@ NEARBY_WIFI_DEVICES
 
 **Packet obfuscation** — Disguising mesh network traffic as a known harmless protocol. Prevents a passive observer from identifying that a mesh network is operating.
 
+**Handshake gating** — The requirement that a security proof must succeed before any data is exchanged. Ensures strangers receive zero information even from a failed connection attempt.
+
 ---
 
 ## Dependencies
@@ -319,13 +348,15 @@ NEARBY_WIFI_DEVICES
 
 ## Design Principles
 
-**Prove the logic before touching the hardware.** The entire gossip protocol, TTL system, priority queue, sleep/wake scheduler, 30-node stress test, security layer, and obfuscation layer all run in pure Dart with zero radio involvement. Only after the logic is proven does it get a radio layer underneath it.
+**Prove the logic before touching the hardware.** The entire gossip protocol, TTL system, priority queue, sleep/wake scheduler, 30-node stress test, security layer, obfuscation layer, and handshake engine all run in pure Dart with zero radio involvement. Only after the logic is proven does it get a radio layer underneath it.
 
 **The transport layer is a plug.** The sync engine (`sync.dart`) takes two `Node` objects and syncs them. It does not care whether those nodes represent simulated objects in memory or real phones connected over Wi-Fi Direct. Swapping the transport does not change the protocol.
 
 **Emergence over orchestration.** No component in Ungie is told to "spread data to all nodes." Each node is only told: "when you meet a neighbour, share what they lack." Full mesh convergence emerges from that single local rule applied repeatedly across random pairings.
 
 **Security through obscurity is not enough — but obscurity still helps.** The obfuscation layer is not the primary security mechanism. Membership tokens provide cryptographic guarantees. Obfuscation adds a second layer that prevents passive discovery of the mesh's existence in the first place.
+
+**Gate first, sync second.** No data flows before identity is proven. The handshake engine enforces this at the architectural level — gossip and security are not separate concerns that can be accidentally wired in the wrong order.
 
 ---
 
